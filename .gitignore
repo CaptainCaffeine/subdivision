@@ -1,0 +1,8 @@
+# Build directory
+[Bb]uild/
+
+# Vim swap files
+*.swp
+
+# Syntastic config file
+.syntastic_cpp_config
