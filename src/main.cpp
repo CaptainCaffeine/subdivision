@@ -15,7 +15,8 @@ int main() {
         std::vector<Renderer::Shader> shaders{
             {"shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl"},
             {"shaders/vertex_shader.glsl", "shaders/light_fragment_shader.glsl"},
-            {"shaders/passthrough_vertex_shader.glsl", "shaders/geo_shader.glsl", "shaders/fragment_shader.glsl"}};
+//            {"shaders/passthrough_vertex_shader.glsl", "shaders/geo_shader.glsl", "shaders/fragment_shader.glsl"}};
+            {"shaders/passthrough_vertex_shader.glsl", "shaders/tess_control_quad.glsl", "shaders/tess_eval_quad.glsl", "shaders/fragment_shader.glsl"}};
         Renderer::RenderLoop(window, shaders, window_width, window_height);
     } catch (const std::runtime_error& e) {
         std::cerr << e.what() << "\n";

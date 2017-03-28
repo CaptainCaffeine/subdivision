@@ -14,6 +14,7 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
 
     Material cube_mat{{0.0f, 0.7f, 0.54f}, {0.0f, 0.7f, 0.54f}, {0.5f, 0.5f, 0.5f}, 64.0f};
     Mesh cube{CubeVertices(), cube_mat};
+    Mesh quad_cube{CubeQuads(), cube_mat};
 
     Input input;
     Camera camera{{0.0f, 0.0f, 5.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
@@ -24,12 +25,15 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
         {{-2.0f, 2.2f, -1.8f}, {0.2f, 0.2f, 0.2f}, {0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f, 0.09f, 0.032f}
     };
 
-    const Shader &regular_shader{shaders[0]}, &light_shader{shaders[1]}, &geo_shader{shaders[2]};
+    const Shader &regular_shader{shaders[0]}, &light_shader{shaders[1]}, &tess_shader{shaders[2]};
 
     const bool dir_light_enabled = false, point_light_enabled = true;
 
     GLuint matrices_UBO = SetMatricesUBO(shaders, win_width/win_height);
     GLuint lights_UBO = SetLightsUBO(shaders, dir_light_enabled, point_light_enabled, dir_light, point_lights);
+
+//    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    glPatchParameteri(GL_PATCH_VERTICES, 4);
 
     while (!glfwWindowShouldClose(window)) {
         input.HandleInput(window, camera);
@@ -86,16 +90,16 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
         }
 
         // Explode cube.
-        glUseProgram(geo_shader.id);
-        glUniform1f(glGetUniformLocation(geo_shader.id, "time"), glfwGetTime());
+        glUseProgram(tess_shader.id);
+//        glUniform1f(glGetUniformLocation(tess_shader.id, "time"), glfwGetTime());
         
-        cube.model = glm::mat4(1.0f);
-        cube.model = glm::translate(cube.model, {0.0f, 2.0f, -2.5f});
-        cube.model = glm::rotate(cube.model, glm::radians(22.0f), {1.0f, 0.0f, 0.0f});
-        cube.model = glm::rotate(cube.model,
+        quad_cube.model = glm::mat4(1.0f);
+        quad_cube.model = glm::translate(quad_cube.model, {0.0f, 2.0f, -2.5f});
+        quad_cube.model = glm::rotate(quad_cube.model, glm::radians(22.0f), {1.0f, 0.0f, 0.0f});
+        quad_cube.model = glm::rotate(quad_cube.model,
                                  static_cast<float>(glm::radians(glfwGetTime() * 4.0f)),
                                  {0.0f, 1.0f, 0.0f});
-        DrawMesh(geo_shader.id, cube, view);
+        DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
 
         glBindVertexArray(0);
 
@@ -103,7 +107,7 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
     }
 }
 
-void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix) {
+void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix, const GLenum mesh_type) {
     SetMaterial(shader_id, mesh.mat);
 
     glBindVertexArray(mesh.VAO);
@@ -114,7 +118,7 @@ void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_ma
     glm::mat3 normal_matrix = glm::mat3(glm::transpose(glm::inverse(view_matrix * mesh.model)));
     glUniformMatrix3fv(normal_mat_loc, 1, GL_FALSE, glm::value_ptr(normal_matrix));
 
-    glDrawArrays(GL_TRIANGLES, 0, mesh.vertices.size());
+    glDrawArrays(mesh_type, 0, mesh.vertices.size());
 }
 
 GLuint CreateUBO(std::size_t buffer_size) {
@@ -202,46 +206,78 @@ void SetMaterial(const GLuint shader_id, const Material& mat) {
 
 std::vector<glm::vec3> CubeVertices() {
     return {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
-			{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, 
-			{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, 
-			{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, 
-			{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, 
-			{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, 
+            { 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            { 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            { 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            {-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            {-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
 
-			{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
-			{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
-			{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
-			{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
-			{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
-			{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f, 1.0f},
+            {-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            { 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            {-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            {-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
 
-			{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
-			{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
-			{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
-			{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
-			{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
-			{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
 
-			{ 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
-			{ 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
-			{ 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
-			{ 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
-			{ 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
-			{ 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
 
-			{-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
-			{ 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
-			{ 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
-			{ 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
-			{-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
-			{-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
+            {-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
+            { 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
+            { 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
+            { 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
+            {-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
+            {-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
 
-			{-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f},
-			{ 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f},
-			{ 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
-			{ 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
-			{-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
-			{-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}};
+            {-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f},
+            { 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
+            {-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
+            {-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}};
+}
+
+std::vector<glm::vec3> CubeQuads() {
+    return {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            {-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            { 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+            { 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f},
+
+            {-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            { 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+            {-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f},
+
+            {-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f},
+            {-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f},
+
+            { 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
+            { 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f},
+
+            {-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
+            { 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f},
+            { 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
+            {-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f},
+
+            {-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f},
+            {-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
+            { 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
+            { 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}};
 }
 
 } // End namespace Renderer.

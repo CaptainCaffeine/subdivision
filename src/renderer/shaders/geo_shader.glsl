@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 layout (triangles) in;
 layout (triangle_strip, max_vertices = 3) out;
@@ -9,6 +9,7 @@ layout (std140) uniform Matrices {
 };
 
 in VertexData {
+    vec3 position;
     vec3 normal;
 } gs_in[];
 

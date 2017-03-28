@@ -50,7 +50,8 @@ struct PointLight {
 
 void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float win_width, float win_height);
 
-void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix);
+void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix,
+              const GLenum mesh_type = GL_TRIANGLES);
 
 GLuint CreateUBO(std::size_t buffer_size);
 GLuint SetMatricesUBO(const std::vector<Shader>& shaders, float aspect);
@@ -59,6 +60,7 @@ GLuint SetLightsUBO(const std::vector<Shader>& shaders, bool dir_enable, bool po
 void SetMaterial(const GLuint shader_id, const Material& mat);
 
 std::vector<glm::vec3> CubeVertices();
+std::vector<glm::vec3> CubeQuads();
 
 // Debug
 void PrintUniformBlockOffsets(const GLuint shader_id, const std::string& block_name);

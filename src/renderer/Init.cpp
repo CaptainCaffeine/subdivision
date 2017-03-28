@@ -16,7 +16,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 GLFWwindow* InitGL(int window_width, int window_height) {
     // Set up GLFW.
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // In case this is compiled on macOS.
