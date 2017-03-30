@@ -14,7 +14,7 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
 
     Material cube_mat{{0.0f, 0.7f, 0.54f}, {0.0f, 0.7f, 0.54f}, {0.5f, 0.5f, 0.5f}, 64.0f};
     Mesh cube{CubeVertices(), cube_mat};
-    Mesh quad_cube{CubeQuads(), cube_mat};
+    Mesh quad_cube{PatchVerts(), cube_mat};
 
     Input input;
     Camera camera{{0.0f, 0.0f, 5.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
@@ -30,10 +30,11 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
     const bool dir_light_enabled = false, point_light_enabled = true;
 
     GLuint matrices_UBO = SetMatricesUBO(shaders, win_width/win_height);
+    SetTessellationUBO(tess_shader);
     GLuint lights_UBO = SetLightsUBO(shaders, dir_light_enabled, point_light_enabled, dir_light, point_lights);
 
-//    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-    glPatchParameteri(GL_PATCH_VERTICES, 4);
+//    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPatchParameteri(GL_PATCH_VERTICES, 16);
 
     while (!glfwWindowShouldClose(window)) {
         input.HandleInput(window, camera);
@@ -69,6 +70,7 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
         
         // Models.
         cube.model = glm::mat4(1.0f);
+        cube.model = glm::translate(cube.model, {0.0f, 2.0f, -2.5f});
         cube.model = glm::rotate(cube.model,
                                  static_cast<float>(glm::radians(glfwGetTime() * 5.0f)),
                                  {1.0f, 0.0f, 0.0f});
@@ -89,16 +91,37 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
             }
         }
 
-        // Explode cube.
+        // B-Spline Patches
         glUseProgram(tess_shader.id);
-//        glUniform1f(glGetUniformLocation(tess_shader.id, "time"), glfwGetTime());
-        
+
+        glUniform1f(glGetUniformLocation(tess_shader.id, "tess_level"), 1.0f);
         quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::translate(quad_cube.model, {0.0f, 2.0f, -2.5f});
-        quad_cube.model = glm::rotate(quad_cube.model, glm::radians(22.0f), {1.0f, 0.0f, 0.0f});
-        quad_cube.model = glm::rotate(quad_cube.model,
-                                 static_cast<float>(glm::radians(glfwGetTime() * 4.0f)),
-                                 {0.0f, 1.0f, 0.0f});
+        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
+        quad_cube.model = glm::translate(quad_cube.model, {-2.0f, 0.0f, 0.0f});
+        DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(tess_shader.id, "tess_level"), 2.0f);
+        quad_cube.model = glm::mat4(1.0f);
+        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
+        quad_cube.model = glm::translate(quad_cube.model, {-1.0f, 0.0f, 0.0f});
+        DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(tess_shader.id, "tess_level"), 3.0f);
+        quad_cube.model = glm::mat4(1.0f);
+        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
+        quad_cube.model = glm::translate(quad_cube.model, {0.0f, 0.0f, 0.0f});
+        DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(tess_shader.id, "tess_level"), 4.0f);
+        quad_cube.model = glm::mat4(1.0f);
+        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
+        quad_cube.model = glm::translate(quad_cube.model, {1.0f, 0.0f, 0.0f});
+        DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(tess_shader.id, "tess_level"), 16.0f);
+        quad_cube.model = glm::mat4(1.0f);
+        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
+        quad_cube.model = glm::translate(quad_cube.model, {2.0f, 0.0f, 0.0f});
         DrawMesh(tess_shader.id, quad_cube, view, GL_PATCHES);
 
         glBindVertexArray(0);
@@ -121,12 +144,12 @@ void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_ma
     glDrawArrays(mesh_type, 0, mesh.vertices.size());
 }
 
-GLuint CreateUBO(std::size_t buffer_size) {
+GLuint CreateUBO(const std::size_t buffer_size, const GLenum buffer_type) {
     GLuint UBO;
     glGenBuffers(1, &UBO);
 
     glBindBuffer(GL_UNIFORM_BUFFER, UBO);
-    glBufferData(GL_UNIFORM_BUFFER, buffer_size, nullptr, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, buffer_size, nullptr, buffer_type);
 
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -139,8 +162,8 @@ GLuint SetMatricesUBO(const std::vector<Shader>& shaders, float aspect) {
         glUniformBlockBinding(shader.id, glGetUniformBlockIndex(shader.id, "Matrices"), bind_index);
     }
 
-    std::size_t ubo_size = 2 * sizeof(glm::mat4);
-    GLuint matrices_UBO = CreateUBO(ubo_size);
+    const std::size_t ubo_size = 2 * sizeof(glm::mat4);
+    GLuint matrices_UBO = CreateUBO(ubo_size, GL_DYNAMIC_DRAW);
     glBindBufferRange(GL_UNIFORM_BUFFER, bind_index, matrices_UBO, 0, ubo_size);
 
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
@@ -149,6 +172,35 @@ GLuint SetMatricesUBO(const std::vector<Shader>& shaders, float aspect) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     return matrices_UBO;
+}
+
+GLuint SetTessellationUBO(const Shader& tess_shader) {
+    constexpr int bind_index = 2;
+    glUniformBlockBinding(tess_shader.id, glGetUniformBlockIndex(tess_shader.id, "TessMatrices"), bind_index);
+
+    const std::size_t ubo_size = 2 * sizeof(glm::mat4);
+    GLuint tess_UBO = CreateUBO(ubo_size);
+    glBindBufferRange(GL_UNIFORM_BUFFER, bind_index, tess_UBO, 0, ubo_size);
+
+    glm::mat4 position_coefs{-1.0f,  3.0f, -3.0f, 1.0f,
+                              3.0f, -6.0f,  0.0f, 4.0f,
+                             -3.0f,  3.0f,  3.0f, 1.0f,
+                              1.0f,  0.0f,  0.0f, 0.0f};
+    position_coefs *= 1.0f/6.0f;
+
+    // Actually a mat4x3 but glsl needs padding at the end of each column.
+    glm::mat4 tangent_coefs{-1.0f,  2.0f, -1.0f, 0.0f,
+                             3.0f, -4.0f,  0.0f, 0.0f,
+                            -3.0f,  2.0f,  1.0f, 0.0f,
+                             1.0f,  0.0f,  0.0f, 0.0f};
+    tangent_coefs *= 0.5f;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, tess_UBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(position_coefs));
+    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(tangent_coefs));
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    return tess_UBO;
 }
 
 GLuint SetLightsUBO(const std::vector<Shader>& shaders, bool dir_enable, bool point_enable,
@@ -160,7 +212,7 @@ GLuint SetLightsUBO(const std::vector<Shader>& shaders, bool dir_enable, bool po
     glUniformBlockBinding(shaders[2].id, glGetUniformBlockIndex(shaders[2].id, "Lights"), bind_index);
 
     std::size_t ubo_size = 80 + point_lights.size() * 80;
-    GLuint lights_UBO = CreateUBO(ubo_size);
+    GLuint lights_UBO = CreateUBO(ubo_size, GL_DYNAMIC_DRAW);
     glBindBufferRange(GL_UNIFORM_BUFFER, bind_index, lights_UBO, 0, ubo_size);
 
     glBindBuffer(GL_UNIFORM_BUFFER, lights_UBO);
@@ -278,6 +330,77 @@ std::vector<glm::vec3> CubeQuads() {
             {-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
             { 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f},
             { 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}};
+}
+
+std::vector<glm::vec3> PatchQuads() {
+    return {{-0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // center
+            {-0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+
+            { 0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // right
+            { 0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+
+            {-0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // left
+            {-0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+
+            {-0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top
+            {-0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f},
+
+            {-0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // bottom
+            {-0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            { 0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+
+            { 0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top right
+            { 0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f, -0.25f, -0.75f}, { 0.0f,  1.0f,  0.0f},
+
+            {-0.75f, -0.25f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top left
+            {-0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f},
+
+            { 0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // bottom right
+            { 0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f, -0.25f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            { 0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f},
+
+            {-0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // bottom left
+            {-0.75f, -0.25f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f},
+            {-0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f}};
+}
+
+std::vector<glm::vec3> PatchVerts() {
+    return {
+            {-0.75f, -0.25f,  0.75f}, { 0.0f,  1.0f,  0.0f}, // bottom left
+            {-0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f}, // bottom
+            { 0.25f,  0.00f,  0.75f}, { 0.0f,  1.0f,  0.0f}, // bottom
+            { 0.75f, -0.25f,  0.75f}, { 0.0f,  1.0f,  0.0f}, // bottom right
+
+            {-0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // left
+            {-0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // center
+            { 0.25f,  0.25f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // center
+            { 0.75f,  0.00f,  0.25f}, { 0.0f,  1.0f,  0.0f}, // right
+
+            {-0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // left
+            {-0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // center
+            { 0.25f,  0.25f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // center
+            { 0.75f,  0.00f, -0.25f}, { 0.0f,  1.0f,  0.0f}, // right
+
+            {-0.75f, -0.25f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top left
+            {-0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top
+            { 0.25f,  0.00f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top
+            { 0.75f, -0.25f, -0.75f}, { 0.0f,  1.0f,  0.0f}, // top right
+    };
 }
 
 } // End namespace Renderer.

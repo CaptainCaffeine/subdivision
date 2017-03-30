@@ -53,14 +53,17 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
 void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix,
               const GLenum mesh_type = GL_TRIANGLES);
 
-GLuint CreateUBO(std::size_t buffer_size);
+GLuint CreateUBO(const std::size_t buffer_size, const GLenum buffer_type = GL_STATIC_DRAW);
 GLuint SetMatricesUBO(const std::vector<Shader>& shaders, float aspect);
+GLuint SetTessellationUBO(const Shader& tess_shader);
 GLuint SetLightsUBO(const std::vector<Shader>& shaders, bool dir_enable, bool point_enable,
                     const DirLight& dir_light, const std::vector<PointLight>& point_lights);
 void SetMaterial(const GLuint shader_id, const Material& mat);
 
 std::vector<glm::vec3> CubeVertices();
 std::vector<glm::vec3> CubeQuads();
+std::vector<glm::vec3> PatchQuads();
+std::vector<glm::vec3> PatchVerts();
 
 // Debug
 void PrintUniformBlockOffsets(const GLuint shader_id, const std::string& block_name);
