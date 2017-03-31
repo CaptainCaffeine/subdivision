@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
 #include <GL/glew.h>
 #include <glm/glm.hpp>
@@ -18,12 +19,12 @@ public:
 
     Mesh(const std::vector<glm::vec3>& vertices, const Material& material);
 
-    static GLuint SetUpVBO(const std::vector<glm::vec3>& vertices);
-    static GLuint SetUpVAO(const GLuint VBO);
-
     void UpdateVBO();
 
-//    static GLuint SetUpBasicVAO(const GLuint VBO);
+    static std::vector<glm::vec3> LoadObjectFromFile(const std::string& obj_filename);
+private:
+    static GLuint SetUpVBO(const std::vector<glm::vec3>& vertices);
+    static GLuint SetUpVAO(const GLuint VBO);
 };
 
 } // End namespace Renderer.

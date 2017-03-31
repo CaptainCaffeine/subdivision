@@ -15,6 +15,8 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
     Material cube_mat{{0.0f, 0.7f, 0.54f}, {0.0f, 0.7f, 0.54f}, {0.5f, 0.5f, 0.5f}, 64.0f};
     Mesh cube{CubeVertices(), cube_mat};
     Mesh quad_cube{PatchVerts(), cube_mat};
+    Mesh big_guy{Mesh::LoadObjectFromFile("../models/bigguy.obj"), cube_mat};
+    Mesh monster_frog{Mesh::LoadObjectFromFile("../models/monsterfrog.obj"), cube_mat};
 
     Input input;
     Camera camera{{0.0f, 0.0f, 5.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
@@ -78,6 +80,17 @@ void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float wi
                                  static_cast<float>(glm::radians(glfwGetTime() * 4.0f)),
                                  {0.0f, 1.0f, 0.0f});
         DrawMesh(regular_shader.id, cube, view);
+
+        big_guy.model = glm::mat4(1.0f);
+        big_guy.model = glm::translate(big_guy.model, {-5.0f, -4.0f, -14.5f});
+        big_guy.model = glm::rotate(big_guy.model, glm::radians(30.0f), {0.0f, 1.0f, 0.0f});
+        DrawMesh(regular_shader.id, big_guy, view);
+
+        monster_frog.model = glm::mat4(1.0f);
+        monster_frog.model = glm::translate(monster_frog.model, {20.5f, -1.0f, -16.5f});
+        monster_frog.model = glm::scale(monster_frog.model, glm::vec3(0.6f));
+        monster_frog.model = glm::rotate(monster_frog.model, glm::radians(-50.0f), {0.0f, 1.0f, 0.0f});
+        DrawMesh(regular_shader.id, monster_frog, view);
 
         if (point_light_enabled) {
             // Light cube.
