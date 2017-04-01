@@ -14,7 +14,7 @@ class Mesh {
 public:
     std::vector<glm::vec3> vertices;
     const Material& mat;
-    const GLuint VBO, VAO;
+    const GLuint vbo, vao;
     glm::mat4 model;
 
     Mesh(const std::vector<glm::vec3>& vertices, const Material& material);

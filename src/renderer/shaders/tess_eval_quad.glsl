@@ -2,12 +2,12 @@
 
 layout(quads, equal_spacing, ccw) in;
 
-layout (std140) uniform TessMatrices {
+layout (std140, binding = 2) uniform TessMatrices {
     mat4 bspline_position;
     mat4x3 bspline_tangent;
 };
 
-layout (std140) uniform Matrices {
+layout (std140, binding = 0) uniform Matrices {
     mat4 proj;
     mat4 view;
 };

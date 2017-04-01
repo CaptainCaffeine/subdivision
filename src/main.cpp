@@ -5,18 +5,31 @@
 #include "renderer/Render.h"
 
 int main() {
-    const int window_width = 1024, window_height = 1024;
+    constexpr int window_width = 1024, window_height = 1024;
     GLFWwindow* window;
 
-    // The try-catch is to catch initialization errors in InitGL and the Shader constructor. RenderLoop is in the
-    // try block because it needs the Shader objects, but it shouldn't throw an exception.
+    using ShaderPaths = std::vector<std::tuple<std::string, GLenum>>;
+
+    ShaderPaths regular{
+        {"shaders/vertex_shader.glsl", GL_VERTEX_SHADER},
+        {"shaders/fragment_shader.glsl", GL_FRAGMENT_SHADER}
+    };
+
+    ShaderPaths light{
+        {"shaders/vertex_shader.glsl", GL_VERTEX_SHADER},
+        {"shaders/light_fragment_shader.glsl", GL_FRAGMENT_SHADER}
+    };
+
+    ShaderPaths tess{
+        {"shaders/passthrough_vertex_shader.glsl", GL_VERTEX_SHADER},
+        {"shaders/tess_control_quad.glsl", GL_TESS_CONTROL_SHADER},
+        {"shaders/tess_eval_quad.glsl", GL_TESS_EVALUATION_SHADER},
+        {"shaders/fragment_shader.glsl", GL_FRAGMENT_SHADER}
+    };
+
     try {
         window = Renderer::InitGL(window_width, window_height);
-        std::vector<Renderer::Shader> shaders{
-            {"shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl"},
-            {"shaders/vertex_shader.glsl", "shaders/light_fragment_shader.glsl"},
-//            {"shaders/passthrough_vertex_shader.glsl", "shaders/geo_shader.glsl", "shaders/fragment_shader.glsl"}};
-            {"shaders/passthrough_vertex_shader.glsl", "shaders/tess_control_quad.glsl", "shaders/tess_eval_quad.glsl", "shaders/fragment_shader.glsl"}};
+        std::vector<GLuint> shaders{Shader::Init(regular), Shader::Init(light), Shader::Init(tess)};
         Renderer::RenderLoop(window, shaders, window_width, window_height);
     } catch (const std::runtime_error& e) {
         std::cerr << e.what() << "\n";

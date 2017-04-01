@@ -12,26 +12,26 @@ namespace Renderer {
 Mesh::Mesh(const std::vector<glm::vec3>& verts, const Material& material)
         : vertices(verts)
         , mat(material)
-        , VBO(SetUpVBO(verts))
-        , VAO(SetUpVAO(VBO)) {}
+        , vbo(SetUpVBO(verts))
+        , vao(SetUpVAO(vbo)) {}
 
 GLuint Mesh::SetUpVBO(const std::vector<glm::vec3>& vertices) {
-    GLuint VBO;
-    glGenBuffers(1, &VBO);
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_DYNAMIC_DRAW);
 
-    return VBO;
+    return vbo;
 }
 
-GLuint Mesh::SetUpVAO(const GLuint VBO) {
-    GLuint VAO;
-    glGenVertexArrays(1, &VAO);
+GLuint Mesh::SetUpVAO(const GLuint vbo) {
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
 
-    glBindVertexArray(VAO);
+    glBindVertexArray(vao);
 
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
         // Position.
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec3), (GLvoid*)0);
@@ -43,11 +43,11 @@ GLuint Mesh::SetUpVAO(const GLuint VBO) {
 
     glBindVertexArray(0);
 
-    return VAO;
+    return vao;
 }
 
 void Mesh::UpdateVBO() {
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), nullptr, GL_DYNAMIC_DRAW);
 
     GLfloat* buffer = static_cast<float*>(glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY));
@@ -71,7 +71,7 @@ std::vector<glm::vec3> Mesh::LoadObjectFromFile(const std::string& obj_filename)
         std::cerr << err_msg << std::endl;
     }
     if (!err) {
-        throw std::invalid_argument("Error when attempting to load mesh from " + obj_filename);
+        throw std::runtime_error("Error when attempting to load mesh from " + obj_filename);
     }
 
     std::vector<glm::vec3> mesh_data;

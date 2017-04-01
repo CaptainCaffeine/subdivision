@@ -52,7 +52,7 @@ const uint num_point_lights = 2u;
 //               | 4              | 148 (quadratic)
 //               | 8              | 152 (struct padding)
 // subsequent array members follow the same offsets but from 160, 240, etc...
-layout (std140) uniform Lights {
+layout (std140, binding = 1) uniform Lights {
     bool dir_lights_enabled;
     bool point_lights_enabled;
 

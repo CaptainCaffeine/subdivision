@@ -48,15 +48,16 @@ struct PointLight {
             , quadratic(quadratic_atten) {}
 };
 
-void RenderLoop(GLFWwindow* window, const std::vector<Shader>& shaders, float win_width, float win_height);
+void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float win_width, float win_height);
 
 void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix,
               const GLenum mesh_type = GL_TRIANGLES);
 
-GLuint CreateUBO(const std::size_t buffer_size, const GLenum buffer_type = GL_STATIC_DRAW);
-GLuint SetMatricesUBO(const std::vector<Shader>& shaders, float aspect);
-GLuint SetTessellationUBO(const Shader& tess_shader);
-GLuint SetLightsUBO(const std::vector<Shader>& shaders, bool dir_enable, bool point_enable,
+GLuint CreateUBO(const std::size_t buffer_size, const GLenum access_type = GL_STATIC_DRAW);
+GLuint CreateSSBO(const std::size_t buffer_size, const GLenum access_type = GL_DYNAMIC_COPY); // I think copy is right?
+GLuint SetMatricesUBO(float aspect);
+GLuint SetTessellationUBO();
+GLuint SetLightsUBO(bool dir_enable, bool point_enable,
                     const DirLight& dir_light, const std::vector<PointLight>& point_lights);
 void SetMaterial(const GLuint shader_id, const Material& mat);
 

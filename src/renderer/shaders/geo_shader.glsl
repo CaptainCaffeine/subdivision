@@ -3,7 +3,7 @@
 layout (triangles) in;
 layout (triangle_strip, max_vertices = 3) out;
 
-layout (std140) uniform Matrices {
+layout (std140, binding = 0) uniform Matrices {
     mat4 proj;
     mat4 view;
 };

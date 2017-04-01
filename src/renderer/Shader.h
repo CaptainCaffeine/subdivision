@@ -1,26 +1,17 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <tuple>
 
 #include <GL/glew.h>
 
-namespace Renderer {
+namespace Shader {
 
-class Shader {
-public:
-    GLuint id;
+GLuint Init(const std::vector<std::tuple<std::string, GLenum>>& shader_paths);
+GLuint CompileShaders(const std::vector<std::tuple<std::string, GLenum>>& shader_strings);
+GLuint CreateShaderObject(const char* shader_source, const GLenum shader_type);
+std::string ShaderNameFromEnum(const GLenum shader) noexcept;
 
-    Shader(const std::string& vs_path, const std::string& tcs_path,
-           const std::string& tes_path, const std::string& fs_path);
-    Shader(const std::string& vs_path, const std::string& gs_path, const std::string& fs_path);
-    Shader(const std::string& vs_path, const std::string& fs_path);
-private:
-    GLuint CompileShaders(const std::string& vs_str, const std::string& tcs_str,
-                          const std::string& tes_str, const std::string& fs_str);
-    GLuint CompileShaders(const std::string& vs_str, const std::string& gs_str, const std::string& fs_str);
-    GLuint CompileShaders(const std::string& vs_str, const std::string& fs_str);
+} // End namespace Shader.
 
-    GLuint CreateShaderObject(const char* shader_source, GLenum shader_type, const std::string& shader_name);
-};
-
-} // End namespace Renderer.
