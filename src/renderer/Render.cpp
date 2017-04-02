@@ -15,8 +15,8 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
     Material cube_mat{{0.0f, 0.7f, 0.54f}, {0.0f, 0.7f, 0.54f}, {0.5f, 0.5f, 0.5f}, 64.0f};
     Mesh cube{CubeVertices(), cube_mat};
     Mesh quad_cube{PatchVerts(), cube_mat};
-    Mesh big_guy{Mesh::LoadObjectFromFile("../models/bigguy.obj"), cube_mat};
-    Mesh monster_frog{Mesh::LoadObjectFromFile("../models/monsterfrog.obj"), cube_mat};
+    Mesh big_guy{Mesh::LoadRegularMeshFromFile("../models/bigguy.obj"), cube_mat};
+    Mesh monster_frog{Mesh::LoadRegularMeshFromFile("../models/monsterfrog.obj"), cube_mat};
 
     Input input;
     Camera camera{{0.0f, 0.0f, 5.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};

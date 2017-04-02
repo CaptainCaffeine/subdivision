@@ -1,9 +1,8 @@
+#include <tuple>
+#include <algorithm>
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
-
-#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cpp
-#include "externals/tiny_obj_loader.h"
 
 #include "renderer/Mesh.h"
 
@@ -59,35 +58,45 @@ void Mesh::UpdateVBO() {
     glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
-std::vector<glm::vec3> Mesh::LoadObjectFromFile(const std::string& obj_filename) {
-    tinyobj::attrib_t attrib;
+Mesh::TinyObjMesh Mesh::LoadObjectFromFile(const std::string& obj_filename) {
+    tinyobj::attrib_t attributes;
     std::vector<tinyobj::shape_t> shapes;
     // I don't load materials right now, but this is still needed to call tinyobj::LoadObj.
     std::vector<tinyobj::material_t> materials;
 
     std::string err_msg;
-    bool err = tinyobj::LoadObj(&attrib, &shapes, &materials, &err_msg, obj_filename.c_str());
+    bool success = tinyobj::LoadObj(&attributes, &shapes, &materials, &err_msg, obj_filename.c_str());
     if (!err_msg.empty()) {
         std::cerr << err_msg << std::endl;
     }
-    if (!err) {
+    if (!success) {
         throw std::runtime_error("Error when attempting to load mesh from " + obj_filename);
     }
 
+    // Haven't found any use for the name field in the shape_t struct, so I just grab the mesh_t's.
+    std::vector<tinyobj::mesh_t> meshes;
+    std::transform(shapes.cbegin(), shapes.cend(), std::back_inserter(meshes),
+                   [](const tinyobj::shape_t& shape) { return shape.mesh; });
+
+    return std::make_tuple(attributes, meshes);
+}
+
+std::vector<glm::vec3> Mesh::LoadRegularMeshFromFile(const std::string& obj_filename) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::mesh_t> meshes;
+    std::tie(attrib, meshes) = LoadObjectFromFile(obj_filename);
+
     std::vector<glm::vec3> mesh_data;
 
-    // Usually only one shape in an .obj file.
-    for (std::size_t s = 0; s < shapes.size(); ++s) {
-        auto current_mesh = shapes[s].mesh;
-
+    // Usually only one mesh in an .obj file, but iterate over them just in case.
+    for (const auto& mesh : meshes) {
         // Iterate over each face in the mesh.
         std::size_t face_offset = 0;
-        for (std::size_t f = 0; f < current_mesh.num_face_vertices.size(); ++f) {
-            std::size_t face_vertices = current_mesh.num_face_vertices[f];
+        for (const auto& valence : mesh.num_face_vertices) {
 
             // Get the vertices and normals for each face from the provided indices.
-            for(std::size_t v = 0; v < face_vertices; ++v) {
-                tinyobj::index_t idx = current_mesh.indices[face_offset + v];
+            for(std::size_t v = 0; v < valence; ++v) {
+                tinyobj::index_t idx = mesh.indices[face_offset + v];
                 mesh_data.emplace_back(attrib.vertices[3 * idx.vertex_index + 0],
                                        attrib.vertices[3 * idx.vertex_index + 1],
                                        attrib.vertices[3 * idx.vertex_index + 2]);
@@ -99,11 +108,25 @@ std::vector<glm::vec3> Mesh::LoadObjectFromFile(const std::string& obj_filename)
                 //float ty = attrib.texcoords[2 * idx.texcoord_index + 1];
             }
 
-            face_offset += face_vertices;
+            face_offset += valence;
         }
     }
 
     return mesh_data;
 }
 
-} // End namespace Renderer.
+void Mesh::LoadControlMeshFromFile(const std::string& obj_filename) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::mesh_t> meshes;
+    std::tie(attrib, meshes) = LoadObjectFromFile(obj_filename);
+
+    // Initialize vertex buffer.
+    std::vector<glm::vec3> vertex_buffer;
+    for (std::size_t i = 0; i < attrib.vertices.size(); i += 3) {
+        vertex_buffer.emplace_back(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2]);
+    }
+
+    GenerateMeshConnectivity(vertex_buffer, meshes);
+}
+
+} // End namespace Renderer
