@@ -24,11 +24,12 @@ public:
 
     void UpdateVBO();
 
-    using TinyObjMesh = std::tuple<tinyobj::attrib_t, std::vector<tinyobj::mesh_t>>;
-    static TinyObjMesh LoadObjectFromFile(const std::string& obj_filename);
     static std::vector<glm::vec3> LoadRegularMeshFromFile(const std::string& obj_filename);
     static void LoadControlMeshFromFile(const std::string& obj_filename);
 private:
+    using TinyObjMesh = std::tuple<tinyobj::attrib_t, std::vector<tinyobj::mesh_t>>;
+    static TinyObjMesh LoadObjectFromFile(const std::string& obj_filename);
+
     static GLuint SetUpVBO(const std::vector<glm::vec3>& vertices);
     static GLuint SetUpVAO(const GLuint VBO);
 };
