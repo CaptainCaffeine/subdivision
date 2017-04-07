@@ -1,6 +1,5 @@
 #pragma once
 
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -10,78 +9,85 @@
 
 namespace Renderer {
 
-struct Edge {
+struct EdgeKey {
     int vertex1, vertex2;
 
-    Edge(int v1, int v2) noexcept;
+    EdgeKey(int v1, int v2) noexcept;
 };
 
-constexpr bool operator==(const Edge& lhs, const Edge& rhs) noexcept {
+constexpr bool operator==(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
     return (lhs.vertex1 == rhs.vertex1 && lhs.vertex2 == rhs.vertex2);
 }
 
-constexpr bool operator!=(const Edge& lhs, const Edge& rhs) noexcept {
+constexpr bool operator!=(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
     return !(lhs == rhs);
 }
 
-struct Vertex {
-    std::unordered_set<int> adj_vertices;
-    std::unordered_set<int> adj_faces;
-};
-
 struct FaceData {
-    int offset;
-    int valence;
-    int inserted_vertex;
+    std::vector<int> vertices;
+    glm::vec3 normal;
     bool regular;
+    int inserted_vertex = -1;
 
-    FaceData(int off, int val, int inserted, bool reg);
+    FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal);
+
+    int Valence() const { return vertices.size(); }
 };
 
 struct EdgeData {
-    int offset;
-    int inserted_vertex;
-    float sharpness;
+    std::array<int, 2> vertices;
+    std::array<const FaceData*, 2> adjacent_faces;
 
-    EdgeData(int off, int inserted, float sharp);
+    float sharpness;
+    int inserted_vertex = -1;
+
+    EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp);
+
+    bool OnBoundary() const { return adjacent_faces[1] == nullptr; }
 };
 
 struct VertexData {
-    int offset;
-    int valence;
-    int face_valence;
+    std::vector<const EdgeData*> adjacent_edges;
+    std::unordered_set<const FaceData*> adjacent_faces;
+    std::vector<int> boundary_vertices;
+
     int predecessor;
     float sharpness;
+    int inserted_vertex = -1;
 
-    VertexData(int off, int val, int fval, int pred, float sharp);
+    VertexData(int pred, float sharp);
+
+    bool OnBoundary() const { return !boundary_vertices.empty(); }
+    int Valence() const { return adjacent_edges.size(); }
+    int FaceValence() const { return adjacent_faces.size(); }
 };
 
-using EdgeMap = std::unordered_map<Edge, std::array<int, 2>>;
-using VertexMap = std::unordered_map<int, Vertex>;
-template<typename T>
-using BufferPair = std::tuple<std::vector<int>, std::vector<T>>;
+template<typename T, typename U>
+using VectorPair = std::tuple<std::vector<T>, std::vector<U>>;
 
-void GenerateMeshConnectivity(const std::vector<glm::vec3>& vertex_buffer, const std::vector<tinyobj::mesh_t>& meshes);
+VectorPair<glm::vec3, int> SubdivideMesh(const tinyobj::attrib_t& attrib,
+                                         const std::vector<tinyobj::mesh_t>& meshes);
+VectorPair<glm::vec3, FaceData> SubdivideFaces(std::vector<FaceData>& face_data,
+                                               const std::vector<glm::vec3>& vertex_buffer);
+std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
+                                               const std::vector<glm::vec3>& vertex_buffer);
+std::vector<EdgeData> GenerateEdgeConnectivity(const std::vector<FaceData>& face_data);
+std::vector<VertexData> GenerateVertexConnectivity(const std::vector<EdgeData>& edge_data);
 
-BufferPair<FaceData> PopulateFaceBuffers(const std::vector<tinyobj::mesh_t>& meshes, int inserted_vertex);
-BufferPair<EdgeData> PopulateEdgeBuffers(const std::vector<int>& face_indices,
-                                         const std::vector<FaceData>& face_data,
-                                         int inserted_vertex);
-BufferPair<VertexData> PopulateVertexBuffers(const std::vector<int>& edge_indices,
-                                             const std::vector<EdgeData>& edge_data,
-                                             int inserted_vertex);
-
-EdgeMap GenerateEdgeConnectivity(const std::vector<int>& face_indices, const std::vector<FaceData>& face_data);
-VertexMap GenerateVertexConnectivity(const std::vector<int>& edge_indices, const std::vector<EdgeData>& edge_data);
+// The data vectors are not const because the function needs to set the inserted vertex index.
+std::vector<glm::vec3> InsertVertices(const std::vector<glm::vec3>& vertex_buffer, std::vector<FaceData>& face_data,
+                                      std::vector<EdgeData>& edge_data, std::vector<VertexData>& vertex_data);
+std::vector<FaceData> CreateNewFaces(const std::vector<VertexData>& vertex_data,
+                                     const std::vector<glm::vec3>& new_vertex_buffer);
 
 } // End namespace Renderer
 
-// Specialization of std::hash for Edge.
+// Specialization of std::hash for EdgeKey.
 namespace std {
 
 template<>
-struct hash<Renderer::Edge> {
-    typedef Renderer::Edge argument_type;
+struct hash<Renderer::EdgeKey> {
+    typedef Renderer::EdgeKey argument_type;
     typedef std::size_t result_type;
     result_type operator()(const argument_type& e) const noexcept {
         const result_type r1{std::hash<int>{}(e.vertex1)};

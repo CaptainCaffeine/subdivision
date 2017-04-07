@@ -52,6 +52,7 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
 
 void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix,
               const GLenum mesh_type = GL_TRIANGLES);
+void DrawIndexedMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix, const GLenum mesh_type);
 
 GLuint CreateUBO(const std::size_t buffer_size, const GLenum access_type = GL_STATIC_DRAW);
 GLuint CreateSSBO(const std::size_t buffer_size, const GLenum access_type = GL_DYNAMIC_COPY); // I think copy is right?

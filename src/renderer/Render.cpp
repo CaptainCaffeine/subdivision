@@ -14,9 +14,37 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
 
     Material cube_mat{{0.0f, 0.7f, 0.54f}, {0.0f, 0.7f, 0.54f}, {0.5f, 0.5f, 0.5f}, 64.0f};
     Mesh cube{CubeVertices(), cube_mat};
-    Mesh quad_cube{PatchVerts(), cube_mat};
+    Mesh quad_patch{PatchVerts(), cube_mat};
     Mesh big_guy{Mesh::LoadRegularMeshFromFile("../models/bigguy.obj"), cube_mat};
     Mesh monster_frog{Mesh::LoadRegularMeshFromFile("../models/monsterfrog.obj"), cube_mat};
+    Mesh plain_cube{Mesh::LoadRegularMeshFromFile("../models/cube.obj"), cube_mat};
+    Mesh plain_quad{Mesh::LoadRegularMeshFromFile("../models/quad.obj"), cube_mat};
+    Mesh four_quad{Mesh::LoadRegularMeshFromFile("../models/four_quad.obj"), cube_mat};
+
+    std::vector<glm::vec3> cube_vertices;
+    std::vector<int> cube_indices;
+    std::tie(cube_vertices, cube_indices) = Mesh::LoadControlMeshFromFile("../models/cube.obj");
+    Mesh subd_cube{cube_vertices, cube_indices, cube_mat};
+
+    std::vector<glm::vec3> quad_vertices;
+    std::vector<int> quad_indices;
+    std::tie(quad_vertices, quad_indices) = Mesh::LoadControlMeshFromFile("../models/quad.obj");
+    Mesh subd_quad{quad_vertices, quad_indices, cube_mat};
+
+    std::vector<glm::vec3> four_vertices;
+    std::vector<int> four_indices;
+    std::tie(four_vertices, four_indices) = Mesh::LoadControlMeshFromFile("../models/four_quad.obj");
+    Mesh subd_four{four_vertices, four_indices, cube_mat};
+
+    std::vector<glm::vec3> bg_vertices;
+    std::vector<int> bg_indices;
+    std::tie(bg_vertices, bg_indices) = Mesh::LoadControlMeshFromFile("../models/bigguy.obj");
+    Mesh subd_big_guy{bg_vertices, bg_indices, cube_mat};
+
+    std::vector<glm::vec3> mf_vertices;
+    std::vector<int> mf_indices;
+    std::tie(mf_vertices, mf_indices) = Mesh::LoadControlMeshFromFile("../models/monsterfrog.obj");
+    Mesh subd_monster_frog{mf_vertices, mf_indices, cube_mat};
 
     Input input;
     Camera camera{{0.0f, 0.0f, 5.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}};
@@ -27,7 +55,11 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
         {{-2.0f, 2.2f, -1.8f}, {0.2f, 0.2f, 0.2f}, {0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, 1.0f, 0.09f, 0.032f}
     };
 
-    const GLuint &regular_shader{shaders[0]}, &light_shader{shaders[1]}, &tess_shader{shaders[2]};
+    const GLuint &regular_shader{shaders[0]};
+    const GLuint &light_shader{shaders[1]};
+    const GLuint &quad_shader{shaders[2]};
+    const GLuint &subd_shader{shaders[3]};
+//    const GLuint &light_quad_shader{shaders[4]};
 
     const bool dir_light_enabled = false, point_light_enabled = true;
 
@@ -35,8 +67,8 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
     GLuint lights_UBO = SetLightsUBO(dir_light_enabled, point_light_enabled, dir_light, point_lights);
     SetTessellationUBO();
 
-//    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glPatchParameteri(GL_PATCH_VERTICES, 16);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+//    glPatchParameteri(GL_PATCH_VERTICES, 16);
 
     while (!glfwWindowShouldClose(window)) {
         input.HandleInput(window, camera);
@@ -81,20 +113,65 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
                                  {0.0f, 1.0f, 0.0f});
         DrawMesh(regular_shader, cube, view);
 
+        glPatchParameteri(GL_PATCH_VERTICES, 4);
+        glUseProgram(quad_shader);
+        glUniform1f(glGetUniformLocation(quad_shader, "tess_level"), 1.0f);
+
         big_guy.model = glm::mat4(1.0f);
         big_guy.model = glm::translate(big_guy.model, {-5.0f, -4.0f, -14.5f});
         big_guy.model = glm::rotate(big_guy.model, glm::radians(30.0f), {0.0f, 1.0f, 0.0f});
-        DrawMesh(regular_shader, big_guy, view);
+        DrawMesh(quad_shader, big_guy, view, GL_PATCHES);
 
         monster_frog.model = glm::mat4(1.0f);
         monster_frog.model = glm::translate(monster_frog.model, {20.5f, -1.0f, -16.5f});
         monster_frog.model = glm::scale(monster_frog.model, glm::vec3(0.6f));
         monster_frog.model = glm::rotate(monster_frog.model, glm::radians(-50.0f), {0.0f, 1.0f, 0.0f});
-        DrawMesh(regular_shader, monster_frog, view);
+        DrawMesh(quad_shader, monster_frog, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(quad_shader, "tess_level"), 1.0f);
+        plain_cube.model = glm::mat4(1.0f);
+        plain_cube.model = glm::translate(plain_cube.model, {-1.0f, -1.0f, 2.3f});
+        DrawMesh(quad_shader, plain_cube, view, GL_PATCHES);
+
+        subd_cube.model = glm::mat4(1.0f);
+        subd_cube.model = glm::translate(subd_cube.model, {1.0f, -1.0f, 2.3f});
+        DrawIndexedMesh(quad_shader, subd_cube, view, GL_PATCHES);
+
+        plain_quad.model = glm::mat4(1.0f);
+        plain_quad.model = glm::translate(plain_quad.model, {-1.0f, -1.0f, 1.0f});
+        DrawMesh(quad_shader, plain_quad, view, GL_PATCHES);
+
+        subd_quad.model = glm::mat4(1.0f);
+        subd_quad.model = glm::translate(subd_quad.model, {1.0f, -1.0f, 1.0f});
+        DrawIndexedMesh(quad_shader, subd_quad, view, GL_PATCHES);
+
+        subd_big_guy.model = glm::mat4(1.0f);
+        subd_big_guy.model = glm::translate(subd_big_guy.model, {-14.0f, -4.0f, 1.5f});
+        subd_big_guy.model = glm::rotate(subd_big_guy.model, glm::radians(100.0f), {0.0f, 1.0f, 0.0f});
+        DrawIndexedMesh(quad_shader, subd_big_guy, view, GL_PATCHES);
+
+        subd_monster_frog.model = glm::mat4(1.0f);
+        subd_monster_frog.model = glm::translate(subd_monster_frog.model, {25.5f, -1.0f, 6.5f});
+        subd_monster_frog.model = glm::scale(subd_monster_frog.model, glm::vec3(0.6f));
+        subd_monster_frog.model = glm::rotate(subd_monster_frog.model, glm::radians(-100.0f), {0.0f, 1.0f, 0.0f});
+        DrawIndexedMesh(quad_shader, subd_monster_frog, view, GL_PATCHES);
+
+        glUniform1f(glGetUniformLocation(quad_shader, "tess_level"), 1.0f);
+        four_quad.model = glm::mat4(1.0f);
+        four_quad.model = glm::translate(four_quad.model, {3.5f, -1.0f, 1.0f});
+        DrawMesh(quad_shader, four_quad, view, GL_PATCHES);
+
+        subd_four.model = glm::mat4(1.0f);
+        subd_four.model = glm::translate(subd_four.model, {3.5f, -1.0f, 3.5f});
+        DrawIndexedMesh(quad_shader, subd_four, view, GL_PATCHES);
 
         if (point_light_enabled) {
             // Light cube.
             glUseProgram(light_shader);
+
+            //subd_cube.model = glm::mat4(1.0f);
+            //subd_cube.model = glm::translate(subd_cube.model, {1.0f, -1.0f, 3.0f});
+            //DrawMesh(light_shader, subd_cube, view, GL_POINTS);
 
             for (std::size_t i = 0; i < point_lights.size(); ++i) {
                 cube.model = glm::mat4(1.0f);
@@ -105,37 +182,38 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
         }
 
         // B-Spline Patches
-        glUseProgram(tess_shader);
+        glPatchParameteri(GL_PATCH_VERTICES, 16);
+        glUseProgram(subd_shader);
 
-        glUniform1f(glGetUniformLocation(tess_shader, "tess_level"), 1.0f);
-        quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
-        quad_cube.model = glm::translate(quad_cube.model, {-2.0f, 0.0f, 0.0f});
-        DrawMesh(tess_shader, quad_cube, view, GL_PATCHES);
+        glUniform1f(glGetUniformLocation(subd_shader, "tess_level"), 1.0f);
+        quad_patch.model = glm::mat4(1.0f);
+        quad_patch.model = glm::scale(quad_patch.model, glm::vec3(1.5f));
+        quad_patch.model = glm::translate(quad_patch.model, {-2.0f, 0.0f, 0.0f});
+        DrawMesh(subd_shader, quad_patch, view, GL_PATCHES);
 
-        glUniform1f(glGetUniformLocation(tess_shader, "tess_level"), 2.0f);
-        quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
-        quad_cube.model = glm::translate(quad_cube.model, {-1.0f, 0.0f, 0.0f});
-        DrawMesh(tess_shader, quad_cube, view, GL_PATCHES);
+        glUniform1f(glGetUniformLocation(subd_shader, "tess_level"), 2.0f);
+        quad_patch.model = glm::mat4(1.0f);
+        quad_patch.model = glm::scale(quad_patch.model, glm::vec3(1.5f));
+        quad_patch.model = glm::translate(quad_patch.model, {-1.0f, 0.0f, 0.0f});
+        DrawMesh(subd_shader, quad_patch, view, GL_PATCHES);
 
-        glUniform1f(glGetUniformLocation(tess_shader, "tess_level"), 3.0f);
-        quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
-        quad_cube.model = glm::translate(quad_cube.model, {0.0f, 0.0f, 0.0f});
-        DrawMesh(tess_shader, quad_cube, view, GL_PATCHES);
+        glUniform1f(glGetUniformLocation(subd_shader, "tess_level"), 3.0f);
+        quad_patch.model = glm::mat4(1.0f);
+        quad_patch.model = glm::scale(quad_patch.model, glm::vec3(1.5f));
+        quad_patch.model = glm::translate(quad_patch.model, {0.0f, 0.0f, 0.0f});
+        DrawMesh(subd_shader, quad_patch, view, GL_PATCHES);
 
-        glUniform1f(glGetUniformLocation(tess_shader, "tess_level"), 4.0f);
-        quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
-        quad_cube.model = glm::translate(quad_cube.model, {1.0f, 0.0f, 0.0f});
-        DrawMesh(tess_shader, quad_cube, view, GL_PATCHES);
+        glUniform1f(glGetUniformLocation(subd_shader, "tess_level"), 4.0f);
+        quad_patch.model = glm::mat4(1.0f);
+        quad_patch.model = glm::scale(quad_patch.model, glm::vec3(1.5f));
+        quad_patch.model = glm::translate(quad_patch.model, {1.0f, 0.0f, 0.0f});
+        DrawMesh(subd_shader, quad_patch, view, GL_PATCHES);
 
-        glUniform1f(glGetUniformLocation(tess_shader, "tess_level"), 16.0f);
-        quad_cube.model = glm::mat4(1.0f);
-        quad_cube.model = glm::scale(quad_cube.model, glm::vec3(1.5f));
-        quad_cube.model = glm::translate(quad_cube.model, {2.0f, 0.0f, 0.0f});
-        DrawMesh(tess_shader, quad_cube, view, GL_PATCHES);
+        glUniform1f(glGetUniformLocation(subd_shader, "tess_level"), 16.0f);
+        quad_patch.model = glm::mat4(1.0f);
+        quad_patch.model = glm::scale(quad_patch.model, glm::vec3(1.5f));
+        quad_patch.model = glm::translate(quad_patch.model, {2.0f, 0.0f, 0.0f});
+        DrawMesh(subd_shader, quad_patch, view, GL_PATCHES);
 
         glBindVertexArray(0);
 
@@ -155,6 +233,20 @@ void DrawMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_ma
     glUniformMatrix3fv(normal_mat_loc, 1, GL_FALSE, glm::value_ptr(normal_matrix));
 
     glDrawArrays(mesh_type, 0, mesh.vertices.size());
+}
+
+void DrawIndexedMesh(const GLuint shader_id, const Mesh& mesh, const glm::mat4& view_matrix, const GLenum mesh_type) {
+    SetMaterial(shader_id, mesh.mat);
+
+    glBindVertexArray(mesh.vao);
+
+    glUniformMatrix4fv(glGetUniformLocation(shader_id, "model"), 1, GL_FALSE, glm::value_ptr(mesh.model));
+
+    GLint normal_mat_loc = glGetUniformLocation(shader_id, "normal_mat");
+    glm::mat3 normal_matrix = glm::mat3(glm::transpose(glm::inverse(view_matrix * mesh.model)));
+    glUniformMatrix3fv(normal_mat_loc, 1, GL_FALSE, glm::value_ptr(normal_matrix));
+
+    glDrawElements(mesh_type, mesh.indices.size(), GL_UNSIGNED_INT, 0);
 }
 
 GLuint CreateUBO(const std::size_t buffer_size, const GLenum access_type) {

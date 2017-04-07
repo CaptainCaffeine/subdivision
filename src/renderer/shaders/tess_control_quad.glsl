@@ -1,6 +1,6 @@
 #version 430 core
 
-layout (vertices = 16) out;
+layout (vertices = 4) out;
 
 in VertexData {
     vec3 position;
