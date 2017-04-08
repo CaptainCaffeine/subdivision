@@ -26,10 +26,15 @@ constexpr bool operator!=(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
 struct FaceData {
     std::vector<int> vertices;
     glm::vec3 normal;
-    bool regular;
-    int inserted_vertex = -1;
+    // Mutable so that we can mark faces adjacent to extraordinary vertices as irregular.
+    // Some may argue this is a misuse of mutable, but I consider this better than
+    //     a) having to const_cast the FaceData objects
+    //     b) removing almost every instance of const in the connectivity code
+    mutable bool regular;
+    bool previously_irregular;
+    mutable int inserted_vertex = -1;
 
-    FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal);
+    FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal, bool reg, bool prev_irreg);
 
     int Valence() const { return vertices.size(); }
 };
@@ -67,18 +72,20 @@ using VectorPair = std::tuple<std::vector<T>, std::vector<U>>;
 
 VectorPair<glm::vec3, int> SubdivideMesh(const tinyobj::attrib_t& attrib,
                                          const std::vector<tinyobj::mesh_t>& meshes);
-VectorPair<glm::vec3, FaceData> SubdivideFaces(std::vector<FaceData>& face_data,
-                                               const std::vector<glm::vec3>& vertex_buffer);
+void SubdivideFaces(std::vector<FaceData>& face_data, std::vector<glm::vec3>& vertex_buffer, bool first_step);
 std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
                                                const std::vector<glm::vec3>& vertex_buffer);
 std::vector<EdgeData> GenerateEdgeConnectivity(const std::vector<FaceData>& face_data);
+std::vector<EdgeData> GenerateIrregularEdgeConnectivity(const std::vector<FaceData>& face_data);
 std::vector<VertexData> GenerateVertexConnectivity(const std::vector<EdgeData>& edge_data);
+std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data);
 
 // The data vectors are not const because the function needs to set the inserted vertex index.
-std::vector<glm::vec3> InsertVertices(const std::vector<glm::vec3>& vertex_buffer, std::vector<FaceData>& face_data,
-                                      std::vector<EdgeData>& edge_data, std::vector<VertexData>& vertex_data);
-std::vector<FaceData> CreateNewFaces(const std::vector<VertexData>& vertex_data,
-                                     const std::vector<glm::vec3>& new_vertex_buffer);
+void InsertVertices(std::vector<glm::vec3>& vertex_buffer, std::vector<FaceData>& face_data,
+                    std::vector<EdgeData>& edge_data, std::vector<VertexData>& vertex_data);
+void CreateNewFaces(const std::vector<glm::vec3>& vertex_buffer,
+                    std::vector<FaceData>& face_data,
+                    const std::vector<VertexData>& vertex_data);
 
 } // End namespace Renderer
 

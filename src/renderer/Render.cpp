@@ -68,7 +68,6 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
     SetTessellationUBO();
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-//    glPatchParameteri(GL_PATCH_VERTICES, 16);
 
     while (!glfwWindowShouldClose(window)) {
         input.HandleInput(window, camera);
