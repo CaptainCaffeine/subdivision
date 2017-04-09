@@ -6,8 +6,9 @@
 
 namespace Shader {
 
-GLuint Init(const std::vector<std::tuple<std::string, GLenum>>& shader_paths) {
-    std::vector<std::tuple<std::string, GLenum>> shader_contents;
+GLuint Init(const Paths& shader_paths) {
+    // shader_contents doesn't actually contain paths, but it uses the same type and I couldn't think of a better name.
+    Paths shader_contents;
     for (const auto& shader_path : shader_paths) {
         std::ifstream shader_source{std::get<0>(shader_path)};
         if (!shader_source) {
@@ -23,17 +24,16 @@ GLuint Init(const std::vector<std::tuple<std::string, GLenum>>& shader_paths) {
     return CompileShaders(shader_contents);
 }
 
-GLuint CompileShaders(const std::vector<std::tuple<std::string, GLenum>>& shader_strings) {
+GLuint CompileShaders(const Paths& shader_strings) {
     std::vector<GLuint> shader_objects;
     for (const auto& s : shader_strings) {
         shader_objects.push_back(CreateShaderObject(std::get<0>(s).c_str(), std::get<1>(s)));
     }
 
     // Generate the shader program object & link the shaders.
-    GLuint shader_program;
-    shader_program = glCreateProgram();
-    for (const auto& shader : shader_objects) {
-        glAttachShader(shader_program, shader);
+    GLuint shader_program = glCreateProgram();
+    for (const auto& shader_object : shader_objects) {
+        glAttachShader(shader_program, shader_object);
     }
     glLinkProgram(shader_program);
 

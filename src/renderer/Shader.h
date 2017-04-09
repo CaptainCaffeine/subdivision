@@ -8,8 +8,10 @@
 
 namespace Shader {
 
-GLuint Init(const std::vector<std::tuple<std::string, GLenum>>& shader_paths);
-GLuint CompileShaders(const std::vector<std::tuple<std::string, GLenum>>& shader_strings);
+using Paths = std::vector<std::tuple<const std::string, GLenum>>;
+
+GLuint Init(const Paths& shader_paths);
+GLuint CompileShaders(const Paths& shader_strings);
 GLuint CreateShaderObject(const char* shader_source, const GLenum shader_type);
 std::string ShaderNameFromEnum(const GLenum shader) noexcept;
 

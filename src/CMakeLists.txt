@@ -9,6 +9,7 @@ set(RENDERER_SOURCES
     renderer/Camera.cpp
     renderer/Input.cpp
     renderer/Mesh.cpp
+    renderer/Subdivision.cpp
     renderer/Connectivity.cpp)
 
 set(RENDERER_HEADERS
@@ -18,6 +19,7 @@ set(RENDERER_HEADERS
     renderer/Camera.h
     renderer/Input.h
     renderer/Mesh.h
+    renderer/Subdivision.h
     renderer/Connectivity.h)
 
 #set(SUBDIVISION_SOURCES

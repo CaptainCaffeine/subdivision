@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -26,12 +27,12 @@ constexpr bool operator!=(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
 struct FaceData {
     std::vector<int> vertices;
     glm::vec3 normal;
+    bool previously_irregular;
     // Mutable so that we can mark faces adjacent to extraordinary vertices as irregular.
     // Some may argue this is a misuse of mutable, but I consider this better than
     //     a) having to const_cast the FaceData objects
     //     b) removing almost every instance of const in the connectivity code
     mutable bool regular;
-    bool previously_irregular;
     mutable int inserted_vertex = -1;
 
     FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal, bool reg, bool prev_irreg);
@@ -46,7 +47,7 @@ struct EdgeData {
     float sharpness;
     int inserted_vertex = -1;
 
-    EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp);
+    EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp) noexcept;
 
     bool OnBoundary() const { return adjacent_faces[1] == nullptr; }
 };
@@ -60,32 +61,23 @@ struct VertexData {
     float sharpness;
     int inserted_vertex = -1;
 
-    VertexData(int pred, float sharp);
+    VertexData(int pred, float sharp) noexcept;
 
     bool OnBoundary() const { return !boundary_vertices.empty(); }
     int Valence() const { return adjacent_edges.size(); }
     int FaceValence() const { return adjacent_faces.size(); }
 };
 
-template<typename T, typename U>
-using VectorPair = std::tuple<std::vector<T>, std::vector<U>>;
-
-VectorPair<glm::vec3, int> SubdivideMesh(const tinyobj::attrib_t& attrib,
-                                         const std::vector<tinyobj::mesh_t>& meshes);
-void SubdivideFaces(std::vector<FaceData>& face_data, std::vector<glm::vec3>& vertex_buffer, bool first_step);
 std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
                                                const std::vector<glm::vec3>& vertex_buffer);
-std::vector<EdgeData> GenerateEdgeConnectivity(const std::vector<FaceData>& face_data);
-std::vector<EdgeData> GenerateIrregularEdgeConnectivity(const std::vector<FaceData>& face_data);
-std::vector<VertexData> GenerateVertexConnectivity(const std::vector<EdgeData>& edge_data);
-std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data);
 
-// The data vectors are not const because the function needs to set the inserted vertex index.
-void InsertVertices(std::vector<glm::vec3>& vertex_buffer, std::vector<FaceData>& face_data,
-                    std::vector<EdgeData>& edge_data, std::vector<VertexData>& vertex_data);
-void CreateNewFaces(const std::vector<glm::vec3>& vertex_buffer,
-                    std::vector<FaceData>& face_data,
-                    const std::vector<VertexData>& vertex_data);
+std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceData>& face_data);
+std::vector<EdgeData> GenerateIrregularEdgeConnectivity(const std::vector<FaceData>& face_data);
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceData& face);
+
+std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeData>& edge_data);
+std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data);
+void FindEdgeVertices(std::unordered_map<int, VertexData>& vertices, const EdgeData& edge);
 
 } // End namespace Renderer
 
