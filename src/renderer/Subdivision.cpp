@@ -16,13 +16,27 @@ IndexedMesh SubdivideMesh(const TinyObjMesh& obj) {
     // Initialize faces.
     std::vector<FaceDataPtr> face_data{GenerateFaceConnectivity(obj.meshes, vertex_buffer)};
 
-    SubdivideFaces(face_data, vertex_buffer, 16);
+//    SubdivideFaces(face_data, vertex_buffer, 16);
+
+//    // Convert the face data into an index vector.
+//    std::vector<int> face_indices;
+//    for (const auto& face : face_data) {
+//        for (const auto& vertex_index : face->vertices) {
+//            face_indices.push_back(vertex_index);
+//        }
+//    }
+//
+    std::vector<EdgeData> edge_data{GenerateGlobalEdgeConnectivity(face_data)};
+    std::vector<VertexData> vertex_data{GenerateGlobalVertexConnectivity(edge_data)};
+    GenerateControlPoints(face_data);
 
     // Convert the face data into an index vector.
     std::vector<int> face_indices;
     for (const auto& face : face_data) {
-        for (const auto& vertex_index : face->vertices) {
-            face_indices.push_back(vertex_index);
+        if (face->regular) {
+            for (const auto& vertex_index : face->control_points) {
+                face_indices.push_back(vertex_index);
+            }
         }
     }
 
@@ -38,7 +52,7 @@ void SubdivideFaces(std::vector<FaceDataPtr>& face_data, std::vector<glm::vec3>&
     }
 }
 
-void InsertFaceVertex(const FaceData& face, std::vector<glm::vec3>& vertex_buffer) {
+void InsertFaceVertex(FaceData& face, std::vector<glm::vec3>& vertex_buffer) {
     if (face.inserted_vertex != -1) {
         // Don't generate a new vertex if we've already done so.
         return;
@@ -54,7 +68,7 @@ void InsertFaceVertex(const FaceData& face, std::vector<glm::vec3>& vertex_buffe
     face.inserted_vertex = vertex_buffer.size() - 1;
 }
 
-void InsertEdgeVertex(const EdgeData& edge, std::vector<glm::vec3>& vertex_buffer) {
+void InsertEdgeVertex(EdgeData& edge, std::vector<glm::vec3>& vertex_buffer) {
     if (edge.inserted_vertex != -1) {
         // Don't generate a new vertex if we've already done so.
         return;
@@ -78,7 +92,7 @@ void InsertEdgeVertex(const EdgeData& edge, std::vector<glm::vec3>& vertex_buffe
     edge.inserted_vertex = vertex_buffer.size() - 1;
 }
 
-void RefineControlVertex(const VertexData& vertex, std::vector<glm::vec3>& vertex_buffer) {
+void RefineControlVertex(VertexData& vertex, std::vector<glm::vec3>& vertex_buffer) {
     glm::vec3 new_vertex(0.0f);
 
     if (vertex.OnBoundary()) {
@@ -119,18 +133,18 @@ void CreateNewFaces(std::vector<glm::vec3>& vertex_buffer,
     std::vector<FaceDataPtr> new_face_data;
     std::unordered_map<EdgeKey, EdgeData> edges;
 
-    for (const auto& vertex : vertex_data) {
+    for (auto& vertex : vertex_data) {
         if (!vertex.adjacent_irregular) {
             continue;
         }
 
         // Calculate the inserted vertices for adjacent faces and edges before refining this vertex.
 
-        for (const auto& face : vertex.adjacent_faces) {
+        for (auto& face : vertex.adjacent_faces) {
             InsertFaceVertex(*face, vertex_buffer);
         }
 
-        for (const auto& edge : vertex.adjacent_edges) {
+        for (auto& edge : vertex.adjacent_edges) {
             InsertEdgeVertex(*edge, vertex_buffer);
         }
 

@@ -1,3 +1,5 @@
+#include <stdexcept>
+#include <cassert>
 #include <algorithm>
 #include <iostream>
 
@@ -21,10 +23,9 @@ FaceData::FaceData(const std::vector<int>& vertex_indices, const glm::vec3& face
         , normal(face_normal)
         , regular(reg) {}
 
-EdgeData::EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, int ffv, float sharp) noexcept
+EdgeData::EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, float sharp) noexcept
         : vertices({{vertex1, vertex2}})
         , adjacent_faces({{face1, face2}})
-        , first_face_vertex(ffv)
         , sharpness(sharp) {}
 
 VertexData::VertexData(int pred, float sharp) noexcept
@@ -81,12 +82,11 @@ std::vector<EdgeData> GenerateGlobalEdgeConnectivity(std::vector<FaceDataPtr>& f
 void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& face) {
     // Loop over each edge of the face.
     for (int v = 0; v < face->Valence(); ++v) {
-        // The last edge is (valence - 1, 0), otherwise it's (v, v + 1).
         int first_index = face->vertices[v];
-        int second_index = face->vertices[(v == face->Valence() - 1) ? 0 : v + 1];
+        int second_index = face->vertices[(v + 1) % 4];
 
         EdgeKey edge{first_index, second_index};
-        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, face.get(), nullptr, v, 0.0f});
+        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, face.get(), nullptr, 0.0f});
 
         // Check if we have already found this edge.
         if (!map_insert.second) {
@@ -97,15 +97,20 @@ void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& fa
 
                 // Add the opposing faces to each other's one ring.
                 FaceData* other_face = map_edge.adjacent_faces[0];
+                int other_index = IndexOfVertexInFace(other_face, second_index);
+
                 if (face->one_ring[v * 2 + 1] != nullptr) {
                     throw std::runtime_error("Edge - Attempted to overwrite a face in a one ring.");
                 }
-                face->one_ring[v * 2 + 1] = other_face;
-
-                if (other_face->one_ring[map_edge.first_face_vertex * 2 + 1] != nullptr) {
+                if (other_face->one_ring[other_index * 2 + 1] != nullptr) {
                     throw std::runtime_error("Edge - Attempted to overwrite a face in the other one ring.");
                 }
-                other_face->one_ring[map_edge.first_face_vertex * 2 + 1] = face.get();
+
+                face->one_ring[v * 2 + 1] = other_face;
+                face->ring_rotation[v * 2 + 1] = RingFaceRotation(v, other_index);
+
+                other_face->one_ring[other_index * 2 + 1] = face.get();
+                other_face->ring_rotation[other_index * 2 + 1] = RingFaceRotation(other_index, v);
             } else {
                 // Edge found a third time - we do not handle meshes with edges adjacent to more than 2 faces.
                 throw std::runtime_error("Edge with valence > 2 found in mesh.");
@@ -114,11 +119,11 @@ void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& fa
     }
 }
 
-std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeData>& edge_data) {
+std::vector<VertexData> GenerateGlobalVertexConnectivity(std::vector<EdgeData>& edge_data) {
     // Iterate over all edges to obtain the vertex connectivity information.
     std::unordered_map<int, VertexData> vertices;
 
-    for (const auto& edge : edge_data) {
+    for (auto& edge : edge_data) {
         FindEdgeVertices(vertices, edge);
     }
 
@@ -155,11 +160,11 @@ std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeD
     return vertex_data;
 }
 
-std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data) {
+std::vector<VertexData> GenerateIrregularVertexConnectivity(std::vector<EdgeData>& edge_data) {
     // Iterate over all edges to obtain the vertex connectivity information.
     std::unordered_map<int, VertexData> vertices;
 
-    for (const auto& edge : edge_data) {
+    for (auto& edge : edge_data) {
         FindEdgeVertices(vertices, edge);
     }
 
@@ -188,7 +193,7 @@ std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<Ed
     return vertex_data;
 }
 
-void FindEdgeVertices(std::unordered_map<int, VertexData>& vertices, const EdgeData& edge) {
+void FindEdgeVertices(std::unordered_map<int, VertexData>& vertices, EdgeData& edge) {
     // Attempt to emplace the vertices into the map, the existing element will be returned if we've found
     // this vertex already.
     auto map_insert1 = vertices.emplace(edge.vertices[0], VertexData(edge.vertices[0], 0.0f));
@@ -225,29 +230,89 @@ void PopulateAdjacentOneRings(VertexData& vertex) {
             auto found_face = std::find(other_face->one_ring.cbegin(), other_face->one_ring.cend(), face);
             if (found_face == other_face->one_ring.cend()) {
                 // Not already present, so add each face to the other's one ring.
-                for (int k = 0; k < face->Valence(); ++k) {
-                    if (face->vertices[k] == vertex.predecessor) {
-                        if (face->one_ring[k * 2] != nullptr) {
-                            throw std::runtime_error("Vertex - Attempted to overwrite a face in a one ring.");
-                        }
+                // Find the index of this vertex in each face.
+                int face_index = IndexOfVertexInFace(face, vertex.predecessor);
+                int other_index = IndexOfVertexInFace(other_face, vertex.predecessor);
 
-                        face->one_ring[k * 2] = other_face;
-                        break;
-                    }
+                if (face->one_ring[face_index * 2] != nullptr) {
+                    throw std::runtime_error("Vertex - Attempted to overwrite a face in a one ring.");
+                }
+                if (other_face->one_ring[other_index * 2] != nullptr) {
+                    throw std::runtime_error("Vertex - Attempted to overwrite a face in the other one ring.");
                 }
 
-                for (int k = 0; k < other_face->Valence(); ++k) {
-                    if (other_face->vertices[k] == vertex.predecessor) {
-                        if (other_face->one_ring[k * 2] != nullptr) {
-                            throw std::runtime_error("Vertex - Attempted to overwrite a face in the other one ring.");
-                        }
+                face->one_ring[face_index * 2] = other_face;
+                face->ring_rotation[face_index * 2] = RingFaceRotation(face_index, other_index);
 
-                        other_face->one_ring[k * 2] = face;
-                        break;
-                    }
-                }
+                other_face->one_ring[other_index * 2] = face;
+                other_face->ring_rotation[other_index * 2] = RingFaceRotation(other_index, face_index);
             }
         }
+    }
+}
+
+int IndexOfVertexInFace(const FaceData* face, const int vertex_index) {
+    for (int i = 0; i < face->Valence(); ++i) {
+        if (face->vertices[i] == vertex_index) {
+            return i;
+        }
+    }
+
+    // Will not happen if the face is from vertex.adjacent_faces.
+    return -1;
+}
+
+int RingFaceRotation(int face_index, int other_index) {
+    int expected_index = (face_index + 2) % 4;
+    return (other_index + (4 - expected_index)) % 4;
+}
+
+void GenerateControlPoints(std::vector<FaceDataPtr>& face_data) {
+    for (auto& face : face_data) {
+        if (!face->regular) {
+            continue;
+        }
+
+        face->control_points[0]  = face->GetRingVertex(0, 0);
+        face->control_points[1]  = face->GetRingVertex(1, 0);
+        face->control_points[2]  = face->GetRingVertex(1, 1);
+        face->control_points[3]  = face->GetRingVertex(2, 1);
+
+        face->control_points[4]  = face->GetRingVertex(7, 0);
+        face->control_points[5]  = face->vertices[0];
+        face->control_points[6]  = face->vertices[1];
+        face->control_points[7]  = face->GetRingVertex(3, 1);
+
+        face->control_points[8]  = face->GetRingVertex(7, 3);
+        face->control_points[9]  = face->vertices[3];
+        face->control_points[10] = face->vertices[2];
+        face->control_points[11] = face->GetRingVertex(3, 2);
+
+        face->control_points[12] = face->GetRingVertex(6, 3);
+        face->control_points[13] = face->GetRingVertex(5, 3);
+        face->control_points[14] = face->GetRingVertex(5, 2);
+        face->control_points[15] = face->GetRingVertex(4, 2);
+
+        assert(face->GetRingVertex(0, 1) == face->GetRingVertex(1, 0) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(1, 1) == face->GetRingVertex(2, 0) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(7, 0) == face->GetRingVertex(0, 3) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(7, 1) == face->vertices[0] && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(1, 3) == face->vertices[0] && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(0, 2) == face->vertices[0] && "One ring vertex mismatch.");
+        assert(face->vertices[1] == face->GetRingVertex(3, 0) && "One ring vertex mismatch.");
+        assert(face->vertices[1] == face->GetRingVertex(1, 2) && "One ring vertex mismatch.");
+        assert(face->vertices[1] == face->GetRingVertex(2, 3) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(3, 1) == face->GetRingVertex(2, 2) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(7, 3) == face->GetRingVertex(6, 0) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(7, 2) == face->vertices[3] && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(5, 0) == face->vertices[3] && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(6, 1) == face->vertices[3] && "One ring vertex mismatch.");
+        assert(face->vertices[2] == face->GetRingVertex(3, 3) && "One ring vertex mismatch.");
+        assert(face->vertices[2] == face->GetRingVertex(5, 1) && "One ring vertex mismatch.");
+        assert(face->vertices[2] == face->GetRingVertex(4, 0) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(3, 2) == face->GetRingVertex(4, 1) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(6, 2) == face->GetRingVertex(5, 3) && "One ring vertex mismatch.");
+        assert(face->GetRingVertex(5, 2) == face->GetRingVertex(4, 3) && "One ring vertex mismatch.");
     }
 }
 
