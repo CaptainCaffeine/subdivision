@@ -28,6 +28,7 @@ constexpr bool operator!=(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
 struct FaceData {
     const std::vector<int> vertices;
     const glm::vec3 normal;
+    std::array<const FaceData*, 8> one_ring{};
     // Mutable so that we can mark faces adjacent to extraordinary vertices as irregular.
     // Some may argue this is a misuse of mutable, but I consider this better than
     //     a) having to const_cast the FaceData objects
@@ -44,19 +45,20 @@ using FaceDataPtr = std::unique_ptr<FaceData>;
 
 struct EdgeData {
     const std::array<int, 2> vertices;
-    std::array<const FaceData*, 2> adjacent_faces;
+    std::array<FaceData*, 2> adjacent_faces;
 
+    const int first_face_vertex;
     const float sharpness;
     mutable int inserted_vertex = -1;
 
-    EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp) noexcept;
+    EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, int ffv, float sharp) noexcept;
 
     bool OnBoundary() const { return adjacent_faces[1] == nullptr; }
 };
 
 struct VertexData {
     std::vector<const EdgeData*> adjacent_edges;
-    std::unordered_set<const FaceData*> adjacent_faces;
+    std::unordered_set<FaceData*> adjacent_faces;
     std::vector<int> boundary_vertices;
 
     const int predecessor;
@@ -74,12 +76,13 @@ struct VertexData {
 std::vector<FaceDataPtr> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
                                                   const std::vector<glm::vec3>& vertex_buffer);
 
-std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceDataPtr>& face_data);
-void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceDataPtr& face);
+std::vector<EdgeData> GenerateGlobalEdgeConnectivity(std::vector<FaceDataPtr>& face_data);
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& face);
 
 std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeData>& edge_data);
 std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data);
 void FindEdgeVertices(std::unordered_map<int, VertexData>& vertices, const EdgeData& edge);
+void PopulateAdjacentOneRings(VertexData& vertex);
 
 } // End namespace Renderer
 

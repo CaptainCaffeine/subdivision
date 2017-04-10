@@ -25,8 +25,8 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
     Mesh plain_cube{PolygonSoup(cube_obj), cube_mat, GL_PATCHES};
     Mesh plain_quad{PolygonSoup(quad_obj), cube_mat, GL_PATCHES};
     Mesh four_quad{PolygonSoup(four_obj), cube_mat, GL_PATCHES};
-    Mesh monster_frog{PolygonSoup(mf_obj), cube_mat, GL_PATCHES};
     Mesh big_guy{PolygonSoup(bg_obj), cube_mat, GL_PATCHES};
+    Mesh monster_frog{PolygonSoup(mf_obj), cube_mat, GL_PATCHES};
 
     Mesh subd_cube{SubdivideMesh(cube_obj), cube_mat, GL_PATCHES};
     Mesh subd_quad{SubdivideMesh(quad_obj), cube_mat, GL_PATCHES};
@@ -106,6 +106,14 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
         subd_quad.model = glm::translate(subd_quad.model, {1.0f, -1.0f, 1.0f});
         subd_quad.DrawMesh(quad_shader, view);
 
+        four_quad.model = glm::mat4(1.0f);
+        four_quad.model = glm::translate(four_quad.model, {3.5f, -1.0f, 1.0f});
+        four_quad.DrawMesh(quad_shader, view);
+
+        subd_four.model = glm::mat4(1.0f);
+        subd_four.model = glm::translate(subd_four.model, {3.5f, -1.0f, 3.5f});
+        subd_four.DrawMesh(quad_shader, view);
+
         big_guy.model = glm::mat4(1.0f);
         big_guy.model = glm::translate(big_guy.model, {-5.0f, -4.0f, -14.5f});
         big_guy.model = glm::rotate(big_guy.model, glm::radians(30.0f), {0.0f, 1.0f, 0.0f});
@@ -127,14 +135,6 @@ void RenderLoop(GLFWwindow* window, const std::vector<GLuint>& shaders, float wi
         subd_monster_frog.model = glm::scale(subd_monster_frog.model, glm::vec3(0.6f));
         subd_monster_frog.model = glm::rotate(subd_monster_frog.model, glm::radians(-100.0f), {0.0f, 1.0f, 0.0f});
         subd_monster_frog.DrawMesh(quad_shader, view);
-
-        four_quad.model = glm::mat4(1.0f);
-        four_quad.model = glm::translate(four_quad.model, {3.5f, -1.0f, 1.0f});
-        four_quad.DrawMesh(quad_shader, view);
-
-        subd_four.model = glm::mat4(1.0f);
-        subd_four.model = glm::translate(subd_four.model, {3.5f, -1.0f, 3.5f});
-        subd_four.DrawMesh(quad_shader, view);
 
         if (point_light_enabled) {
             // Light cube(s).

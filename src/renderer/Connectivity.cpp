@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 
 #include "renderer/Connectivity.h"
 
@@ -20,9 +21,10 @@ FaceData::FaceData(const std::vector<int>& vertex_indices, const glm::vec3& face
         , normal(face_normal)
         , regular(reg) {}
 
-EdgeData::EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp) noexcept
+EdgeData::EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, int ffv, float sharp) noexcept
         : vertices({{vertex1, vertex2}})
         , adjacent_faces({{face1, face2}})
+        , first_face_vertex(ffv)
         , sharpness(sharp) {}
 
 VertexData::VertexData(int pred, float sharp) noexcept
@@ -57,14 +59,14 @@ std::vector<FaceDataPtr> GenerateFaceConnectivity(const std::vector<tinyobj::mes
     return face_data;
 }
 
-std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceDataPtr>& face_data) {
+std::vector<EdgeData> GenerateGlobalEdgeConnectivity(std::vector<FaceDataPtr>& face_data) {
     // As most edges will be discovered twice, we keep track of generated edges in a map. We use a map instead
     // of a set, because we need to update the second face once the edge has already been inserted, and set elements
     // are immutable.
     std::unordered_map<EdgeKey, EdgeData> edges;
 
     // Iterate over all faces and find their edges.
-    for (const auto& face : face_data) {
+    for (auto& face : face_data) {
         FindFaceEdges(edges, face);
     }
 
@@ -76,7 +78,7 @@ std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceDataP
     return edge_data;
 }
 
-void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceDataPtr& face) {
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& face) {
     // Loop over each edge of the face.
     for (int v = 0; v < face->Valence(); ++v) {
         // The last edge is (valence - 1, 0), otherwise it's (v, v + 1).
@@ -84,13 +86,26 @@ void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceDataP
         int second_index = face->vertices[(v == face->Valence() - 1) ? 0 : v + 1];
 
         EdgeKey edge{first_index, second_index};
-        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, face.get(), nullptr, 0.0f});
+        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, face.get(), nullptr, v, 0.0f});
 
         // Check if we have already found this edge.
         if (!map_insert.second) {
-            if (map_insert.first->second.adjacent_faces[1] == nullptr) {
+            EdgeData& map_edge = map_insert.first->second;
+            if (map_edge.adjacent_faces[1] == nullptr) {
                 // Edge has already been found once. Insert the offset for the second face.
-                map_insert.first->second.adjacent_faces[1] = face.get();
+                map_edge.adjacent_faces[1] = face.get();
+
+                // Add the opposing faces to each other's one ring.
+                FaceData* other_face = map_edge.adjacent_faces[0];
+                if (face->one_ring[v * 2 + 1] != nullptr) {
+                    throw std::runtime_error("Edge - Attempted to overwrite a face in a one ring.");
+                }
+                face->one_ring[v * 2 + 1] = other_face;
+
+                if (other_face->one_ring[map_edge.first_face_vertex * 2 + 1] != nullptr) {
+                    throw std::runtime_error("Edge - Attempted to overwrite a face in the other one ring.");
+                }
+                other_face->one_ring[map_edge.first_face_vertex * 2 + 1] = face.get();
             } else {
                 // Edge found a third time - we do not handle meshes with edges adjacent to more than 2 faces.
                 throw std::runtime_error("Edge with valence > 2 found in mesh.");
@@ -122,10 +137,16 @@ std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeD
             }
         }
 
+        // Ignore irregular vertices for now.
+        if (v.second.Valence() == 4) {
+            PopulateAdjacentOneRings(v.second);
+        }
+
         vertex_data.push_back(v.second);
     }
 
     for (auto& vertex : vertex_data) {
+        // Mark this vertex if it is adjacent to any irregular faces.
         vertex.adjacent_irregular = (vertex.Valence() != 4) ||
                                     std::any_of(vertex.adjacent_faces.cbegin(), vertex.adjacent_faces.cend(),
                                                 [](const FaceData* face) { return !face->regular; });
@@ -153,6 +174,11 @@ std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<Ed
             if (v.second.boundary_vertices.size() > 2) {
                 throw std::runtime_error("Found a vertex with " + std::to_string(v.second.boundary_vertices.size()) +
                                         " boundary edges. Non-manifold surfaces are not supported.");
+            }
+
+            // Ignore irregular vertices for now.
+            if (v.second.Valence() == 4) {
+                PopulateAdjacentOneRings(v.second);
             }
 
             vertex_data.push_back(v.second);
@@ -184,6 +210,44 @@ void FindEdgeVertices(std::unordered_map<int, VertexData>& vertices, const EdgeD
     } else {
         map_vertex1.adjacent_faces.insert(edge.adjacent_faces[1]);
         map_vertex2.adjacent_faces.insert(edge.adjacent_faces[1]);
+    }
+}
+
+void PopulateAdjacentOneRings(VertexData& vertex) {
+    // For each adjacent face, check if it is present in the one ring of any other adjacent face. If it is not,
+    // add it as a corner face.
+    for (auto& face : vertex.adjacent_faces) {
+        for (auto& other_face : vertex.adjacent_faces) {
+            if (face == other_face) {
+                continue;
+            }
+
+            auto found_face = std::find(other_face->one_ring.cbegin(), other_face->one_ring.cend(), face);
+            if (found_face == other_face->one_ring.cend()) {
+                // Not already present, so add each face to the other's one ring.
+                for (int k = 0; k < face->Valence(); ++k) {
+                    if (face->vertices[k] == vertex.predecessor) {
+                        if (face->one_ring[k * 2] != nullptr) {
+                            throw std::runtime_error("Vertex - Attempted to overwrite a face in a one ring.");
+                        }
+
+                        face->one_ring[k * 2] = other_face;
+                        break;
+                    }
+                }
+
+                for (int k = 0; k < other_face->Valence(); ++k) {
+                    if (other_face->vertices[k] == vertex.predecessor) {
+                        if (other_face->one_ring[k * 2] != nullptr) {
+                            throw std::runtime_error("Vertex - Attempted to overwrite a face in the other one ring.");
+                        }
+
+                        other_face->one_ring[k * 2] = face;
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
