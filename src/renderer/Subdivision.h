@@ -13,13 +13,14 @@ struct TinyObjMesh;
 struct IndexedMesh;
 
 IndexedMesh SubdivideMesh(const TinyObjMesh& obj_data);
-void SubdivideFaces(std::vector<FaceData>& face_data, std::vector<glm::vec3>& vertex_buffer, bool first_step);
+void SubdivideFaces(std::vector<FaceDataPtr>& face_data, std::vector<glm::vec3>& vertex_buffer, int tess_level);
 
-// The data vectors are not const because the function needs to set the inserted vertex index.
-void InsertVertices(std::vector<glm::vec3>& vertex_buffer, std::vector<FaceData>& face_data,
-                    std::vector<EdgeData>& edge_data, std::vector<VertexData>& vertex_data);
-void CreateNewFaces(const std::vector<glm::vec3>& vertex_buffer,
-                    std::vector<FaceData>& face_data,
-                    const std::vector<VertexData>& vertex_data);
+void InsertFaceVertex(const FaceData& face, std::vector<glm::vec3>& vertex_buffer);
+void InsertEdgeVertex(const EdgeData& edge, std::vector<glm::vec3>& vertex_buffer);
+void RefineControlVertex(const VertexData& vertex, std::vector<glm::vec3>& vertex_buffer);
+void CreateNewFaces(std::vector<glm::vec3>& vertex_buffer,
+                    std::vector<FaceDataPtr>& face_data,
+                    std::vector<EdgeData>& edge_data,
+                    std::vector<VertexData>& vertex_data);
 
 } // End namespace Renderer

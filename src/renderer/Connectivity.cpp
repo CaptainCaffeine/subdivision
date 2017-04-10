@@ -15,10 +15,9 @@ EdgeKey::EdgeKey(int v1, int v2) noexcept {
     }
 }
 
-FaceData::FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal, bool reg, bool prev_irreg)
+FaceData::FaceData(const std::vector<int>& vertex_indices, const glm::vec3& face_normal, bool reg)
         : vertices(vertex_indices)
         , normal(face_normal)
-        , previously_irregular(prev_irreg)
         , regular(reg) {}
 
 EdgeData::EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp) noexcept
@@ -30,9 +29,9 @@ VertexData::VertexData(int pred, float sharp) noexcept
         : predecessor(pred)
         , sharpness(sharp) {}
 
-std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
-                                               const std::vector<glm::vec3>& vertex_buffer) {
-    std::vector<FaceData> face_data;
+std::vector<FaceDataPtr> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
+                                                  const std::vector<glm::vec3>& vertex_buffer) {
+    std::vector<FaceDataPtr> face_data;
 
     // Get the face-vertex data from the provided .obj.
     // Usually only one mesh in an .obj file, but iterate over them just in case.
@@ -48,8 +47,9 @@ std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t
             // the face normal here to orient subdivided faces later.
             glm::vec3 face_u{vertex_buffer[face_indices[1]] - vertex_buffer[face_indices[0]]};
             glm::vec3 face_v{vertex_buffer[face_indices[2]] - vertex_buffer[face_indices[0]]};
+            glm::vec3 face_normal{glm::normalize(glm::cross(face_u, face_v))};
 
-            face_data.emplace_back(face_indices, glm::normalize(glm::cross(face_u, face_v)), valence == 4, false);
+            face_data.push_back(std::make_unique<FaceData>(face_indices, face_normal, valence == 4));
             face_offset += valence;
         }
     }
@@ -57,7 +57,7 @@ std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t
     return face_data;
 }
 
-std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceData>& face_data) {
+std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceDataPtr>& face_data) {
     // As most edges will be discovered twice, we keep track of generated edges in a map. We use a map instead
     // of a set, because we need to update the second face once the edge has already been inserted, and set elements
     // are immutable.
@@ -76,42 +76,21 @@ std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceData>
     return edge_data;
 }
 
-std::vector<EdgeData> GenerateIrregularEdgeConnectivity(const std::vector<FaceData>& face_data) {
-    // As most edges will be discovered twice, we keep track of generated edges in a map. We use a map instead
-    // of a set, because we need to update the second face once the edge has already been inserted, and set elements
-    // are immutable.
-    std::unordered_map<EdgeKey, EdgeData> edges;
-
-    // Iterate over all irregular and previously irregular faces, and add their edges.
-    for (const auto& face : face_data) {
-        if (!face.regular || face.previously_irregular) {
-            FindFaceEdges(edges, face);
-        }
-    }
-
-    // Transform the map values into a vector.
-    std::vector<EdgeData> edge_data;
-    std::transform(edges.cbegin(), edges.cend(), std::back_inserter(edge_data),
-                   [](const auto& e) { return e.second; });
-
-    return edge_data;
-}
-
-void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceData& face) {
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceDataPtr& face) {
     // Loop over each edge of the face.
-    for (int v = 0; v < face.Valence(); ++v) {
+    for (int v = 0; v < face->Valence(); ++v) {
         // The last edge is (valence - 1, 0), otherwise it's (v, v + 1).
-        int first_index = face.vertices[v];
-        int second_index = face.vertices[(v == face.Valence() - 1) ? 0 : v + 1];
+        int first_index = face->vertices[v];
+        int second_index = face->vertices[(v == face->Valence() - 1) ? 0 : v + 1];
 
         EdgeKey edge{first_index, second_index};
-        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, &face, nullptr, 0.0f});
+        auto map_insert = edges.emplace(edge, EdgeData{edge.vertex1, edge.vertex2, face.get(), nullptr, 0.0f});
 
         // Check if we have already found this edge.
         if (!map_insert.second) {
             if (map_insert.first->second.adjacent_faces[1] == nullptr) {
                 // Edge has already been found once. Insert the offset for the second face.
-                map_insert.first->second.adjacent_faces[1] = &face;
+                map_insert.first->second.adjacent_faces[1] = face.get();
             } else {
                 // Edge found a third time - we do not handle meshes with edges adjacent to more than 2 faces.
                 throw std::runtime_error("Edge with valence > 2 found in mesh.");
@@ -130,7 +109,7 @@ std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeD
 
     // Transform the map values into a vector.
     std::vector<VertexData> vertex_data;
-    for (const auto& v : vertices) {
+    for (auto& v : vertices) {
         if (v.second.boundary_vertices.size() > 2) {
             throw std::runtime_error("Found a vertex with " + std::to_string(v.second.boundary_vertices.size()) +
                                      " boundary edges. Non-manifold surfaces are not supported.");
@@ -146,6 +125,12 @@ std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeD
         vertex_data.push_back(v.second);
     }
 
+    for (auto& vertex : vertex_data) {
+        vertex.adjacent_irregular = (vertex.Valence() != 4) ||
+                                    std::any_of(vertex.adjacent_faces.cbegin(), vertex.adjacent_faces.cend(),
+                                                [](const FaceData* face) { return !face->regular; });
+    }
+
     return vertex_data;
 }
 
@@ -159,11 +144,12 @@ std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<Ed
 
     // Transform the map values into a vector.
     std::vector<VertexData> vertex_data;
-    for (const auto& v : vertices) {
+    for (auto& v : vertices) {
         // Only add this vertex if it is adjacent to an irregular face.
-        bool irregular = std::any_of(v.second.adjacent_faces.begin(), v.second.adjacent_faces.end(),
-                                     [](const FaceData* face) { return !face->regular; });
-        if (irregular) {
+        v.second.adjacent_irregular = (v.second.Valence() != 4) ||
+                                      std::any_of(v.second.adjacent_faces.cbegin(), v.second.adjacent_faces.cend(),
+                                                  [](const FaceData* face) { return !face->regular; });
+        if (v.second.adjacent_irregular) {
             if (v.second.boundary_vertices.size() > 2) {
                 throw std::runtime_error("Found a vertex with " + std::to_string(v.second.boundary_vertices.size()) +
                                         " boundary edges. Non-manifold surfaces are not supported.");

@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 
 #include <glm/glm.hpp>
 
@@ -25,9 +26,8 @@ constexpr bool operator!=(const EdgeKey& lhs, const EdgeKey& rhs) noexcept {
 }
 
 struct FaceData {
-    std::vector<int> vertices;
-    glm::vec3 normal;
-    bool previously_irregular;
+    const std::vector<int> vertices;
+    const glm::vec3 normal;
     // Mutable so that we can mark faces adjacent to extraordinary vertices as irregular.
     // Some may argue this is a misuse of mutable, but I consider this better than
     //     a) having to const_cast the FaceData objects
@@ -35,17 +35,19 @@ struct FaceData {
     mutable bool regular;
     mutable int inserted_vertex = -1;
 
-    FaceData(std::vector<int> vertex_indices, const glm::vec3& face_normal, bool reg, bool prev_irreg);
+    FaceData(const std::vector<int>& vertex_indices, const glm::vec3& face_normal, bool reg);
 
     int Valence() const { return vertices.size(); }
 };
 
+using FaceDataPtr = std::unique_ptr<FaceData>;
+
 struct EdgeData {
-    std::array<int, 2> vertices;
+    const std::array<int, 2> vertices;
     std::array<const FaceData*, 2> adjacent_faces;
 
-    float sharpness;
-    int inserted_vertex = -1;
+    const float sharpness;
+    mutable int inserted_vertex = -1;
 
     EdgeData(int vertex1, int vertex2, const FaceData* face1, const FaceData* face2, float sharp) noexcept;
 
@@ -57,9 +59,10 @@ struct VertexData {
     std::unordered_set<const FaceData*> adjacent_faces;
     std::vector<int> boundary_vertices;
 
-    int predecessor;
-    float sharpness;
-    int inserted_vertex = -1;
+    const int predecessor;
+    const float sharpness;
+    bool adjacent_irregular = false;
+    mutable int inserted_vertex = -1;
 
     VertexData(int pred, float sharp) noexcept;
 
@@ -68,12 +71,11 @@ struct VertexData {
     int FaceValence() const { return adjacent_faces.size(); }
 };
 
-std::vector<FaceData> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
-                                               const std::vector<glm::vec3>& vertex_buffer);
+std::vector<FaceDataPtr> GenerateFaceConnectivity(const std::vector<tinyobj::mesh_t>& meshes,
+                                                  const std::vector<glm::vec3>& vertex_buffer);
 
-std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceData>& face_data);
-std::vector<EdgeData> GenerateIrregularEdgeConnectivity(const std::vector<FaceData>& face_data);
-void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceData& face);
+std::vector<EdgeData> GenerateGlobalEdgeConnectivity(const std::vector<FaceDataPtr>& face_data);
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, const FaceDataPtr& face);
 
 std::vector<VertexData> GenerateGlobalVertexConnectivity(const std::vector<EdgeData>& edge_data);
 std::vector<VertexData> GenerateIrregularVertexConnectivity(const std::vector<EdgeData>& edge_data);
