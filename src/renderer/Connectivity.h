@@ -29,9 +29,11 @@ struct FaceData {
     const std::vector<int> vertices;
     const glm::vec3 normal;
 
+    std::array<int, 4> vertex_valences;
     std::array<const FaceData*, 8> one_ring{};
-    std::array<int, 8> ring_rotation;
-    std::array<int, 16> control_points;
+    std::array<int, 8> ring_rotation{};
+    std::array<int, 16> control_points{};
+    std::array<int, 25> subdivided_points{};
 
     bool regular;
     int inserted_vertex = -1;
@@ -40,7 +42,11 @@ struct FaceData {
 
     int Valence() const { return vertices.size(); }
     int GetRingVertex(int face, int vertex) const {
-        return one_ring[face]->vertices[(vertex + ring_rotation[face]) % 4];
+        if ((face % 2) == 0 && one_ring[face] == nullptr) {
+            return -1;
+        } else {
+            return one_ring[face]->vertices[(vertex + ring_rotation[face]) % 4];
+        }
     }
 };
 
@@ -50,10 +56,12 @@ struct EdgeData {
     const std::array<int, 2> vertices;
     std::array<FaceData*, 2> adjacent_faces;
 
+    const int first_face_vertex;
+
     const float sharpness;
     int inserted_vertex = -1;
 
-    EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, float sharp) noexcept;
+    EdgeData(int vertex1, int vertex2, FaceData* face1, FaceData* face2, int ffv, float sharp) noexcept;
 
     bool OnBoundary() const { return adjacent_faces[1] == nullptr; }
 };
@@ -79,7 +87,7 @@ std::vector<FaceDataPtr> GenerateFaceConnectivity(const std::vector<tinyobj::mes
                                                   const std::vector<glm::vec3>& vertex_buffer);
 
 std::vector<EdgeData> GenerateGlobalEdgeConnectivity(std::vector<FaceDataPtr>& face_data);
-void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& face);
+void FindFaceEdges(std::unordered_map<EdgeKey, EdgeData>& edges, FaceDataPtr& face, bool one_ring);
 
 std::vector<VertexData> GenerateGlobalVertexConnectivity(std::vector<EdgeData>& edge_data);
 std::vector<VertexData> GenerateIrregularVertexConnectivity(std::vector<EdgeData>& edge_data);
